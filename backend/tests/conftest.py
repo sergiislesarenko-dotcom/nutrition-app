@@ -99,3 +99,27 @@ async def registered_user(client: AsyncClient, user_payload: dict) -> dict:
 def auth_headers(registered_user: dict) -> dict:
     """Return Authorization headers for the registered test user."""
     return {"Authorization": f"Bearer {registered_user['access_token']}"}
+
+
+@pytest.fixture
+def log_payload() -> dict:
+    """Valid nutrition log creation payload."""
+    return {
+        "meal_type": "lunch",
+        "food_name": "Chicken breast",
+        "weight_g": 200.0,
+        "calories_kcal": 330.0,
+        "protein_g": 62.0,
+        "carbs_g": 0.0,
+        "fat_g": 7.0,
+    }
+
+
+@pytest.fixture
+def goal_payload() -> dict:
+    """Valid goal creation payload."""
+    return {
+        "goal_type": "weight_loss",
+        "target_weight_kg": 65.0,
+        "daily_calories_kcal": 2000,
+    }
