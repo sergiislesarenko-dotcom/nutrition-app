@@ -4,7 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.restriction import Restriction
 from app.models.user import User
+from app.schemas.nutrition_schemas import RestrictionCreate, RestrictionOut
 from app.schemas.user_schemas import AuthResponse, TokenResponse, UserCreate, UserOut, UserUpdate
 
 ACTIVITY_FACTORS: dict[str, float] = {
@@ -105,3 +107,31 @@ async def update_user_profile(db: AsyncSession, userId: int, data: UserUpdate) -
     await db.commit()
     await db.refresh(user)
     return _to_user_out(user)
+
+
+async def add_restriction(
+    db: AsyncSession, userId: int, data: RestrictionCreate
+) -> RestrictionOut:
+    """Add a dietary/medical/allergy restriction for the user."""
+    restriction = Restriction(userId=userId, type=data.type, value=data.value)
+    db.add(restriction)
+    await db.commit()
+    await db.refresh(restriction)
+    return RestrictionOut.model_validate(restriction)
+
+
+async def get_restrictions(db: AsyncSession, userId: int) -> list[RestrictionOut]:
+    """Return all restrictions for the user."""
+    result = await db.execute(select(Restriction).where(Restriction.userId == userId))
+    return [RestrictionOut.model_validate(r) for r in result.scalars().all()]
+
+
+async def delete_restriction(db: AsyncSession, userId: int, restrictionId: int) -> None:
+    """Delete a restriction; raise 404 if missing, 403 if not the owner."""
+    restriction = await db.get(Restriction, restrictionId)
+    if restriction is None:
+        raise AppError(status.HTTP_404_NOT_FOUND, "Restriction not found", "RESTRICTION_NOT_FOUND")
+    if restriction.userId != userId:
+        raise AppError(status.HTTP_403_FORBIDDEN, "Access denied", "FORBIDDEN")
+    await db.delete(restriction)
+    await db.commit()

@@ -10,7 +10,6 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from app.core.config import settings
 from app.core.database import Base
 from app.core.dependencies import get_db
@@ -30,6 +29,7 @@ TestAsyncSessionLocal = async_sessionmaker(
 @pytest_asyncio.fixture(scope="session")
 async def setup_test_db():
     """Create all tables once for the test session; drop them after."""
+    await _kill_sleeping_connections()
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -38,12 +38,40 @@ async def setup_test_db():
     await test_engine.dispose()
 
 
+async def _kill_sleeping_connections() -> None:
+    """Kill stale sleeping connections left by previously aborted test runs.
+
+    Aborted pytest processes (e.g. killed mid-run) can leave MySQL connections
+    in Sleep state with open transactions that hold metadata locks, blocking
+    subsequent DELETE/TRUNCATE statements in teardown.
+    """
+    async with test_engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT id FROM information_schema.processlist"
+                " WHERE db = :db AND command = 'Sleep' AND id != CONNECTION_ID()"
+            ),
+            {"db": "nutrition_test_db"},
+        )
+        for row in result.fetchall():
+            try:
+                await conn.execute(text(f"KILL {row[0]}"))
+            except Exception:
+                pass  # Connection may have already gone away
+
+
 async def _truncate_all(engine) -> None:
-    """Truncate every table in reverse FK order to reset state between tests."""
+    """Delete all rows in every table in reverse FK order to reset state between tests.
+
+    Uses DELETE (DML) instead of TRUNCATE (DDL) because TRUNCATE requires an
+    exclusive table metadata lock which can be blocked by any connection with an
+    open transaction, even one that only issued SELECTs.  DELETE only needs
+    row-level locks and is never blocked by idle/reading connections.
+    """
     async with engine.begin() as conn:
         await conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
         for table in reversed(Base.metadata.sorted_tables):
-            await conn.execute(text(f"TRUNCATE TABLE `{table.name}`"))
+            await conn.execute(text(f"DELETE FROM `{table.name}`"))
         await conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
 
