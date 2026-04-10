@@ -13,6 +13,7 @@ import app.models.goal           # noqa: F401
 import app.models.nutrition_log  # noqa: F401
 import app.models.restriction    # noqa: F401
 import app.models.recommendation  # noqa: F401
+import app.models.food             # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

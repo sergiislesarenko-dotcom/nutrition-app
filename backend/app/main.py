@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import AppError
 from app.routers.ai_router import router as ai_router
 from app.routers.auth_router import router as auth_router
+from app.routers.food_router import router as food_router
 from app.routers.nutrition_router import router as nutrition_router
 from app.routers.user_router import router as user_router
 
@@ -29,6 +30,7 @@ app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(user_router, prefix=API_V1_PREFIX)
 app.include_router(nutrition_router, prefix=API_V1_PREFIX)
 app.include_router(ai_router, prefix=API_V1_PREFIX)
+app.include_router(food_router, prefix=API_V1_PREFIX)
 
 
 @app.exception_handler(AppError)

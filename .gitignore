@@ -29,3 +29,6 @@ Thumbs.db
 
 # Alembic
 # НЕ игнорируй migrations/ — они должны быть в git
+
+# Resources (local notes, not for version control)
+Resources/
